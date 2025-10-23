@@ -4,15 +4,22 @@ import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon'; 
 import { Product, ProductService } from '../../services/product.service';
-import { RouterLink } from '@angular/router';
-import { Observable } from 'rxjs'; // <-- ¡Importamos Observable!
+import { Router, RouterLink, ActivatedRoute } from '@angular/router'; 
+import { Observable, combineLatest } from 'rxjs'; // <-- Importar combineLatest aquí
+import { MatSnackBar } from '@angular/material/snack-bar'; 
+import { map } from 'rxjs/operators'; // switchMap ya no es necesario
 
 @Component({
   selector: 'app-product-list',
   standalone: true,
   imports: [CommonModule, MatCardModule, MatButtonModule, MatIconModule, CurrencyPipe, RouterLink], 
   template: `
-    <h2>Catálogo de Productos 🔩</h2>
+    <!-- Mostrar título con término de búsqueda si existe -->
+    <h2 *ngIf="searchTerm$ | async">Resultados de búsqueda para: 
+      **"{{ searchTerm$ | async }}"**
+    </h2>
+    <h2 *ngIf="!(searchTerm$ | async)">Catálogo de Productos 🔩</h2>
+    
     <div class="product-grid">
       <mat-card *ngFor="let product of (products$ | async)" class="product-card"> 
         <div class="image-placeholder">
@@ -40,6 +47,7 @@ import { Observable } from 'rxjs'; // <-- ¡Importamos Observable!
     </div>
   `,
   styles: [`
+    h2 { text-align: center; margin-bottom: 30px; font-weight: 500; }
     .product-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -47,32 +55,58 @@ import { Observable } from 'rxjs'; // <-- ¡Importamos Observable!
       padding: 20px;
     }
     .product-card {
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      transition: transform 0.2s;
-      height: 100%;
+      /* Estilos para que el filtrado se note bien */
+      min-height: 400px; 
     }
-    .product-card:hover { transform: translateY(-5px); box-shadow: 0 8px 16px rgba(0,0,0,0.2); }
-    .image-placeholder { background-color: #f0f0f0; height: 180px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; font-weight: bold; }
-    .price { font-size: 1.4em; color: #3f51b5; font-weight: 600; margin: 5px 0 10px; }
-    .description { color: #666; font-size: 0.9em; }
-    .actions-footer { display: flex; justify-content: space-between; padding: 0 16px 16px; }
+    /* ... (otros estilos) ... */
   `]
 })
 export class ProductListComponent implements OnInit {
-  // 1. Cambiamos el tipo a Observable<Product[]>
   products$!: Observable<Product[]>; 
+  searchTerm$!: Observable<string | null>; 
 
-  constructor(private productService: ProductService) { }
+  constructor(
+    private productService: ProductService, 
+    private snackBar: MatSnackBar, 
+    private router: Router,
+    private route: ActivatedRoute
+  ) { }
 
   ngOnInit(): void {
-    // 2. Asignamos el Observable directamente
-    this.products$ = this.productService.getProducts(); 
+    // 1. Obtener un Observable del término de búsqueda de la URL
+    this.searchTerm$ = this.route.queryParams.pipe(
+      map(params => params['q'] ? params['q'].toLowerCase() : null)
+    );
+
+    // 2. Usar combineLatest para unir productos y término de búsqueda
+    this.products$ = combineLatest([
+      this.productService.getProducts(), // Observable<Product[]>
+      this.searchTerm$ // Observable<string | null>
+    ]).pipe( // <-- El pipe va aquí, después de combineLatest
+      // 3. Filtrar los productos
+      map(([products, searchTerm]) => {
+        if (!searchTerm) {
+          // Si no hay término, devolver todos los productos
+          return products;
+        }
+        // Si hay término, filtrar por nombre o descripción
+        return products.filter((product: Product) => // <-- Parámetro 'product' correctamente tipado
+          product.name.toLowerCase().includes(searchTerm) ||
+          product.description.toLowerCase().includes(searchTerm)
+        );
+      })
+    );
   }
 
   addToCart(product: Product): void {
     this.productService.addToCart(product);
-    alert(`${product.name} añadido al carrito.`);
+    
+    this.snackBar.open(`${product.name} añadido al carrito.`, 'VER CARRITO', {
+      duration: 3000,
+      horizontalPosition: 'end',
+      verticalPosition: 'bottom'
+    }).onAction().subscribe(() => {
+      this.router.navigate(['/carrito']); 
+    });
   }
 }

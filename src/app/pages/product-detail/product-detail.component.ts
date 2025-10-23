@@ -1,10 +1,11 @@
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router'; // <-- Importar Router
 import { Product, ProductService } from '../../services/product.service';
-import { CommonModule, CurrencyPipe } from '@angular/common'; // <-- Necesario
+import { CommonModule, CurrencyPipe } from '@angular/common'; 
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon'; // <-- Necesario
+import { MatIconModule } from '@angular/material/icon'; 
+import { MatSnackBar } from '@angular/material/snack-bar'; // <-- Importar MatSnackBar
 
 @Component({
   selector: 'app-product-detail',
@@ -16,8 +17,7 @@ import { MatIconModule } from '@angular/material/icon'; // <-- Necesario
         <div class="product-layout">
           <div class="image-section">
             <div class="image-placeholder-detail">
-              
-            </div>
+                          </div>
             <p>Artículo: {{ product.name }}</p>
           </div>
 
@@ -71,9 +71,12 @@ import { MatIconModule } from '@angular/material/icon'; // <-- Necesario
 export class ProductDetailComponent implements OnInit {
   product: Product | undefined;
 
+  // Inyectar MatSnackBar y Router
   constructor(
     private route: ActivatedRoute,
-    private productService: ProductService
+    private productService: ProductService,
+    private snackBar: MatSnackBar,
+    private router: Router
   ) { }
 
   ngOnInit(): void {
@@ -83,8 +86,18 @@ export class ProductDetailComponent implements OnInit {
     });
   }
 
+  // Lógica con MatSnackBar
   addToCart(product: Product): void {
     this.productService.addToCart(product);
-    alert(`${product.name} agregado al carrito.`);
+    
+    // Reemplazamos alert() con MatSnackBar
+    this.snackBar.open(`${product.name} agregado al carrito.`, 'VER CARRITO', {
+      duration: 3000,
+      horizontalPosition: 'end',
+      verticalPosition: 'bottom'
+    }).onAction().subscribe(() => {
+      // Si el usuario hace clic en 'VER CARRITO', navegamos
+      this.router.navigate(['/carrito']); 
+    });
   }
 }
